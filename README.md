@@ -1,11 +1,11 @@
-# Transitive Inference Task
+# Acquired Equivalence Task
 
 | Field | Value |
 |---|---|
-| Name | Transitive Inference Task |
+| Name | Acquired Equivalence Task |
 | Version | v0.1.0-dev |
-| URL / Repository | [TaskBeacon/T000052-transitive-inference-task](https://github.com/TaskBeacon/T000052-transitive-inference-task) |
-| Short Description | Classic five-symbol transitive inference task with premise-pair learning, repeat-until-criterion training, and a final BD/AE test |
+| URL / Repository | [TaskBeacon/T000053-acquired-equivalence-task](https://github.com/TaskBeacon/T000053-acquired-equivalence-task) |
+| Short Description | Face-cue / fish-choice acquired-equivalence task with staged learning, repeat-until-criterion training, and a final transfer test |
 | Created By | TaskBeacon build pipeline |
 | Date Updated | 2026-04-17 |
 | PsyFlow Version | 0.1.12 |
@@ -15,9 +15,9 @@
 
 ## 1. Task Overview
 
-This task implements a classic transitive inference paradigm in PsychoPy/PsyFlow. Participants learn a five-symbol Hiragana hierarchy by trial and error across four premise-pair training blocks. The training blocks repeat until every premise pair reaches the accuracy criterion, and the final test block mixes premise pairs with the BD transitive probe and the AE anchor probe.
+This task implements a classic acquired-equivalence paradigm in PsychoPy/PsyFlow. Participants learn which fish goes with each face across three training stages. New faces that share the same learned outcomes are introduced in later stages, and the final transfer test checks whether participants generalize the learned associations to the novel equivalence-consistent pairings.
 
-The runtime keeps the execution auditable. Trial order is deterministic from the task seed, left/right symbol placement is randomized per trial, and training feedback is limited to the learning phase. The task uses text-rendered symbols and does not require external media assets.
+The runtime keeps the execution auditable. Trial order is deterministic from the task seed, the left/right fish order is counterbalanced within each stage, and training feedback is limited to the learning stages. The task uses generated face and fish reference assets and does not require external licensed media.
 
 ## 2. Task Flow
 
@@ -30,110 +30,62 @@ The runtime keeps the execution auditable. Trial order is deterministic from the
 | Load Config | Read the mode-specific config and task metadata. |
 | Collect Subject Info | Collect subject ID in human mode or inject deterministic IDs in QA/sim. |
 | Initialize Runtime | Create the PsychoPy window, keyboard, triggers, and stimulus bank. |
-| Show Instructions | Present the transitive-inference instructions and key mappings. |
-| Run Training Block 1 | Present premise pairs with feedback until the criterion is met. |
-| Run Training Block 2 | Present the same premise-pair learning structure with a different schedule. |
-| Run Training Block 3 | Present the compact premise-pair schedule. |
-| Run Training Block 4 | Present the randomized premise-pair schedule. |
-| Run Final Test | Present premise, transitive, and anchor probes with no feedback. |
+| Show Instructions | Present the acquired-equivalence instructions and response-key mapping. |
+| Run Stage 1 | Train the first face-fish mappings until the streak criterion is met. |
+| Run Stage 2 | Add the second face variants while retaining the earlier mappings. |
+| Run Stage 3 | Add the second fish set while retaining the earlier face-fish mappings. |
+| Run Transfer Test | Present the retained and novel transfer probes with no feedback. |
 | Finish | Present the goodbye screen, send the end trigger, and quit PsychoPy. |
 
 ### Trial-Level Flow
 
 | Step | Description |
 |---|---|
-| Trial Fixation | Show a centered fixation cross for a short pre-pair interval. |
-| Pair Display | Show the two Hiragana symbols side-by-side with a response prompt. |
-| Pair Response | Collect `Z` for left or `M` for right within the response window. |
-| Training Feedback | Show correctness feedback only during the training blocks. |
+| Trial Fixation | Show a centered fixation cross for a short pre-choice interval. |
+| Face and Fish Display | Show one face cue near the top and two fish choices lower left/right. |
+| Choice Response | Collect `Z` for left or `M` for right within the response window. |
+| Training Feedback | Show correctness feedback only during the training stages. |
 | Trial ITI | Show the fixation cross again before the next trial. |
 
 ### Controller Logic
 
 | Feature | Description |
 |---|---|
-| Condition Scheduling | `build_session_plan(...)` expands the config-defined training and test patterns into trial lists. |
-| Determinism | Trial order and left/right placement are deterministic from the overall seed, block index, trial index, and block attempt. |
-| Criterion Control | Training blocks repeat until every premise pair reaches the accuracy threshold or the repeat limit is reached. |
+| Condition Scheduling | `build_session_plan(...)` expands the stage templates into ordered trial lists for Stage 1, Stage 2, Stage 3, and the transfer test. |
+| Determinism | Trial order is deterministic from the overall seed, block index, and attempt index. |
+| Criterion Control | Training stages repeat until the required consecutive-correct streak is reached or the repeat limit is hit. |
 | Trial Context | Every participant-visible phase in `src/run_trial.py` calls `set_trial_context(...)` before display or response capture. |
-| Simulation | The scripted and sampler responders exercise the response path with high-accuracy training behavior and slightly lower transitive-probe accuracy. |
-
-### Other Logic
-
-| Feature | Description |
-|---|---|
-| Asset Strategy | All stimuli are text-rendered Hiragana glyphs and prompt text; no external media assets are required. |
-| Output Capture | Trial data are written to mode-specific CSV files in `outputs/`. |
-| Repeat Handling | Failed training blocks are replayed with the same configured schedule. |
+| Simulation | The scripted and sampler responders exercise the response path with high-accuracy training behavior and slightly lower transfer-probe accuracy. |
 
 ## 3. Configuration Summary
 
-All settings are defined in `config/config.yaml`.
+| Setting | Value |
+|---|---|
+| Subject Info | `subject_id` collected as a 3-digit integer in human mode. |
+| Window | `1280 x 720`, black background, `pix` units, fullscreen off. |
+| Stimuli | Config-defined instruction text, fixation, feedback, block-intro text, and generated face/fish PNG assets. |
+| Timing | Fixation `0.4 s`, response window `3.0 s`, feedback `0.8 s`, ITI `0.4 s`. |
+| Triggers | Experiment, block, choice, response, feedback, ITI, and goodbye triggers are mapped in `config/*.yaml`. |
+| Adaptive Controller | Stage 1 requires `8` consecutive correct responses, Stage 2 requires `8`, and Stage 3 requires `12`; training blocks repeat up to `8` attempts. |
 
 ### a. Subject Info
 
-| Field | Meaning |
-|---|---|
-| `subject_id` | Three-digit participant identifier. |
+`subject_id` is collected as a 3-digit integer in human mode.
 
 ### b. Window Settings
 
-| Parameter | Value |
-|---|---|
-| `window.size` | `[1280, 720]` |
-| `window.units` | `pix` |
-| `window.bg_color` | `black` |
-| `window.fullscreen` | `false` |
-| `window.screen` | `0` |
+`1280 x 720`, black background, `pix` units, fullscreen off.
 
 ### c. Stimuli
 
-| Stimulus ID | Purpose |
-|---|---|
-| `instruction_text` | Intro screen that explains the hierarchy-learning task and key mapping. |
-| `training_block_intro_text` | Training block intro screen with criterion reminder. |
-| `test_block_intro_text` | Final test intro screen with no-feedback reminder. |
-| `pair_prompt_text` | Response prompt displayed beneath the symbol pair. |
-| `pair_left_symbol` / `pair_right_symbol` | The two Hiragana glyphs shown on each trial. |
-| `fixation` | Center fixation cross used before pair screens and during ITIs. |
-| `training_feedback_*` | Training-only feedback screens for correct, incorrect, and timeout outcomes. |
-| `block_summary_text` | Training-block summary with pair accuracies and repeat/advance notice. |
-| `good_bye_text` | Final summary screen and exit prompt. |
+Config-defined instruction text, fixation, feedback, block-intro text, and generated face/fish PNG assets.
 
 ### d. Timing
 
-| Parameter | Value |
-|---|---|
-| `timing.fixation_duration_s` | `0.4` s |
-| `timing.response_window_s` | `3.0` s |
-| `timing.feedback_duration_s` | `0.8` s |
-| `timing.iti_duration_s` | `0.4` s |
-
-### e. Triggers
-
-| Event | Code |
-|---|---|
-| `exp_onset` / `exp_end` | `1` / `2` |
-| `block_onset` / `block_end` | `10` / `11` |
-| `instruction_onset` | `12` |
-| `trial_fixation_onset` | `20` |
-| `pair_onset` | `21` |
-| `response_z` / `response_m` | `31` / `32` |
-| `trial_timeout` | `33` |
-| `feedback_onset` | `34` |
-| `trial_iti_onset` | `35` |
-| `good_bye_onset` | `40` |
-
-### f. Adaptive Controller
-
-| Parameter | Value |
-|---|---|
-| `task.training_accuracy_threshold` | `0.8` |
-| `task.block_repeat_limit` | `3` |
-| Adaptive controller | Training blocks repeat until the 80% premise-pair criterion is reached or the repeat limit is hit. |
+Fixation `0.4 s`, response window `3.0 s`, feedback `0.8 s`, ITI `0.4 s`.
 
 ## 4. Methods (for academic publication)
 
-Participants completed a transitive inference task using five Hiragana symbols arranged in a learned hierarchy. They practiced adjacent premise pairs across four training blocks and received trial-level feedback during learning. Once the premise-pair criterion was reached, they moved to a final test block that mixed premise pairs with the novel BD transitive probe and the AE anchor probe.
+Participants complete an acquired-equivalence learning task with face cues and paired fish choices. The task is organized into three training stages and a final transfer test. Early stages establish the associative structure and introduce additional faces or fish while retaining earlier pairings; the final test probes whether learning generalizes to the novel transfer-consistent pairings.
 
-The executable implementation keeps the protocol auditable. Trial order, randomization, and repeat decisions are deterministic from the config seed and the observed training accuracy. The displayed stimuli are text-rendered Hiragana glyphs, which makes the task portable and easy to localize or restyle without changing the state machine.
+The implementation is designed for reproducibility and auditability. Trial order, left/right response order, and stage repetition are deterministic given the task seed, and the participant-facing text remains config-driven for localization portability.

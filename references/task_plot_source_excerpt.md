@@ -1,12 +1,15 @@
-# Source Excerpt (Transitive Inference Task)
+# Source Excerpt (Acquired Equivalence Task)
 
 ## Input Files
-- README: E:\Taskbeacon\T000052-transitive-inference-task\README.md
-- Config: E:\Taskbeacon\T000052-transitive-inference-task\config\config.yaml
-- run_trial: E:\Taskbeacon\T000052-transitive-inference-task\src\run_trial.py
+- README: E:\Taskbeacon\T000053-acquired-equivalence-task\README.md
+- Config: E:\Taskbeacon\T000053-acquired-equivalence-task\config\config.yaml
+- run_trial: E:\Taskbeacon\T000053-acquired-equivalence-task\src\run_trial.py
 
 ## Selected Conditions
-- training_premise
+- stage1_training
+- stage2_training
+- stage3_training
+- transfer_test
 
 ## Note
-- Timelines were inferred from run_trial phase/context calls with condition-branch filtering.
+- The task plot uses one timeline per stage to preserve the stage-specific learning and no-feedback transfer structure.

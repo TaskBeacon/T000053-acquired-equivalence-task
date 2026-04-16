@@ -1,5 +1,6 @@
 from contextlib import nullcontext
 from pathlib import Path
+import random
 
 import pandas as pd
 from psychopy import core
@@ -22,10 +23,9 @@ from src.run_trial import run_trial
 from src.utils import (
     DEFAULT_BLOCK_REPEAT_LIMIT,
     DEFAULT_CONTINUE_KEY,
-    DEFAULT_TRAINING_THRESHOLD,
     build_session_plan,
     format_pair_accuracy_lines,
-    summarize_block_trials,
+    summarize_stage_attempt,
     summarize_trials,
 )
 
@@ -35,6 +35,15 @@ DEFAULT_CONFIG_BY_MODE = {
     "qa": "config/config_qa.yaml",
     "sim": "config/config_scripted_sim.yaml",
 }
+
+
+def _attempt_rng(seed: int, block_idx: int, attempt_idx: int) -> random.Random:
+    mixed = (
+        (int(seed) + 1) * 1_000_003
+        + (int(block_idx) + 1) * 10_009
+        + (int(attempt_idx) + 1) * 97
+    )
+    return random.Random(mixed % (2**32))
 
 
 def _show_text(
@@ -81,7 +90,7 @@ def _format_ms(value: float | None) -> str:
     return f"{value:.1f} ms"
 
 
-def _run_block(
+def _run_stage_block(
     *,
     win,
     kb,
@@ -91,20 +100,22 @@ def _run_block(
     block_plan: dict,
     all_data: list[dict],
     continue_key: list[str],
-    repeat_limit: int,
-    threshold: float,
 ) -> None:
     block_kind = str(block_plan["block_kind"])
+    stage_id = str(block_plan["stage_id"])
     block_label = str(block_plan["block_label"])
     block_idx = int(block_plan["block_idx"])
     block_id = str(block_plan["block_id"])
-    block_trials = list(block_plan["trials"])
+    trials_template = list(block_plan["trials"])
+    required_streak = int(block_plan.get("required_consecutive_correct") or 0)
+    repeat_limit = int(block_plan.get("repeat_limit") or DEFAULT_BLOCK_REPEAT_LIMIT)
 
     if block_kind == "training":
-        block_attempt = 0
+        current_streak = 0
+        attempt_idx = 0
         while True:
-            block_attempt += 1
-            attempt_block_id = f"{block_id}_attempt_{block_attempt}"
+            attempt_idx += 1
+            attempt_block_id = f"{block_id}_attempt_{attempt_idx}"
             trigger_runtime.send(settings.triggers.get("block_onset"))
             _show_text(
                 stim_bank,
@@ -115,49 +126,63 @@ def _run_block(
                 phase="block_intro",
                 trial_id=f"{attempt_block_id}_intro",
                 block_id=attempt_block_id,
-                condition_id="training_block",
+                condition_id=stage_id,
                 valid_keys=continue_key,
                 task_factors={
-                    "stage": "block_intro",
+                    "stage_id": stage_id,
                     "block_kind": block_kind,
                     "block_label": block_label,
                     "block_idx": block_idx,
-                    "block_attempt": block_attempt,
-                    "trial_count": len(block_trials),
-                    "threshold": threshold,
-                    "repeat_limit": repeat_limit,
+                    "block_attempt": attempt_idx,
+                    "trial_count": len(trials_template),
+                    "required_consecutive_correct": required_streak,
+                    "current_streak": current_streak,
                 },
                 block_label=block_label,
-                trial_count=len(block_trials),
-                threshold_pct=f"{threshold * 100:.0f}%",
-                repeat_limit=repeat_limit,
+                trial_count=len(trials_template),
+                required_consecutive_correct=required_streak,
+                current_streak=current_streak,
             )
 
-            attempt_trials: list[dict] = []
-            for trial_spec in block_trials:
+            attempt_trials = list(trials_template)
+            rng = _attempt_rng(getattr(settings, "overall_seed", 53053), block_idx, attempt_idx)
+            rng.shuffle(attempt_trials)
+
+            attempt_results: list[dict] = []
+            for trial_spec in attempt_trials:
                 trial_data = run_trial(
                     win,
                     kb,
                     settings,
-                    condition={**trial_spec, "block_attempt": block_attempt},
+                    condition={**trial_spec, "block_attempt": attempt_idx},
                     stim_bank=stim_bank,
                     trigger_runtime=trigger_runtime,
                     block_id=attempt_block_id,
                     block_idx=block_idx,
                 )
-                attempt_trials.append(trial_data)
+                attempt_results.append(trial_data)
                 all_data.append(trial_data)
 
-            summary = summarize_block_trials(attempt_trials, threshold=threshold)
+            summary = summarize_stage_attempt(attempt_results)
             trigger_runtime.send(settings.triggers.get("block_end"))
 
-            repeat_block = (not summary["criterion_met"]) and (block_attempt < repeat_limit)
-            if summary["criterion_met"]:
-                repeat_message = f"All premise pairs reached {threshold * 100:.0f}% accuracy. Continue to the next block."
-            elif repeat_block:
-                repeat_message = "This block will repeat now so the premise pairs can be learned more firmly."
+            if summary["perfect"]:
+                current_streak += len(attempt_results)
             else:
-                repeat_message = "Repeat limit reached. Continue to the next block."
+                current_streak = 0
+
+            criterion_met = current_streak >= required_streak
+            repeat_block = (not criterion_met) and (attempt_idx < repeat_limit)
+            if criterion_met:
+                repeat_message = (
+                    f"{current_streak} consecutive correct responses reached. Continue to the next stage."
+                )
+            elif repeat_block:
+                repeat_message = (
+                    f"Current streak is {current_streak}/{required_streak}. The stage will repeat with the same cue set."
+                )
+            else:
+                repeat_message = "Repeat limit reached. Continue to the next stage."
 
             _show_text(
                 stim_bank,
@@ -168,22 +193,25 @@ def _run_block(
                 phase="block_summary",
                 trial_id=f"{attempt_block_id}_summary",
                 block_id=attempt_block_id,
-                condition_id="training_block",
+                condition_id=stage_id,
                 valid_keys=continue_key,
                 task_factors={
-                    "stage": "block_summary",
+                    "stage_id": stage_id,
                     "block_kind": block_kind,
                     "block_label": block_label,
                     "block_idx": block_idx,
-                    "block_attempt": block_attempt,
-                    "criterion_met": summary["criterion_met"],
-                    "threshold": threshold,
-                    "repeat_limit": repeat_limit,
+                    "block_attempt": attempt_idx,
+                    "current_streak": current_streak,
+                    "required_consecutive_correct": required_streak,
+                    "criterion_met": criterion_met,
+                    "accuracy": summary["accuracy"],
                     "repeat_message": repeat_message,
-                    "overall_accuracy": summary["accuracy"],
                     "timeout_count": summary["timeout_count"],
                 },
                 block_label=block_label,
+                current_streak=current_streak,
+                required_consecutive_correct=required_streak,
+                accuracy_pct=_format_pct(summary["accuracy"]),
                 pair_accuracy_lines=format_pair_accuracy_lines(summary),
                 repeat_message=repeat_message,
             )
@@ -201,20 +229,24 @@ def _run_block(
             phase="block_intro",
             trial_id=f"{block_id}_intro",
             block_id=block_id,
-            condition_id="test_block",
+            condition_id=stage_id,
             valid_keys=continue_key,
             task_factors={
-                "stage": "block_intro",
+                "stage_id": stage_id,
                 "block_kind": block_kind,
                 "block_label": block_label,
                 "block_idx": block_idx,
-                "trial_count": len(block_trials),
+                "trial_count": len(trials_template),
             },
             block_label=block_label,
-            trial_count=len(block_trials),
+            trial_count=len(trials_template),
         )
 
-        for trial_spec in block_trials:
+        attempt_trials = list(trials_template)
+        rng = _attempt_rng(getattr(settings, "overall_seed", 53053), block_idx, 1)
+        rng.shuffle(attempt_trials)
+
+        for trial_spec in attempt_trials:
             trial_data = run_trial(
                 win,
                 kb,
@@ -231,7 +263,7 @@ def _run_block(
 
 
 def run(options):
-    """Run the transitive-inference task in human, QA, or sim mode."""
+    """Run the acquired-equivalence task in human, QA, or sim mode."""
 
     task_root = Path(__file__).resolve().parent
     cfg = load_config(str(options.config_path))
@@ -280,8 +312,6 @@ def run(options):
         settings.save_to_json()
 
         continue_key = [str(getattr(settings, "continue_key", DEFAULT_CONTINUE_KEY)).strip().lower()]
-        repeat_limit = int(getattr(settings, "block_repeat_limit", DEFAULT_BLOCK_REPEAT_LIMIT))
-        threshold = float(getattr(settings, "training_accuracy_threshold", DEFAULT_TRAINING_THRESHOLD))
 
         trigger_runtime.send(settings.triggers.get("exp_onset"))
         _show_text(
@@ -296,20 +326,16 @@ def run(options):
             condition_id="instruction",
             valid_keys=continue_key,
             task_factors={
-                "stage": "instruction",
-                "repeat_limit": repeat_limit,
-                "training_threshold": threshold,
+                "stage_id": "instruction",
+                "task_name": str(getattr(settings, "task_name", "Acquired Equivalence Task")),
             },
-            chain_symbols=" ".join(str(x) for x in list(getattr(settings, "chain_symbols", []))),
-            training_threshold_pct=f"{threshold * 100:.0f}%",
-            repeat_limit=repeat_limit,
         )
 
         session_plan = build_session_plan(settings)
         all_data: list[dict] = []
 
         for block_plan in session_plan:
-            _run_block(
+            _run_stage_block(
                 win=win,
                 kb=kb,
                 settings=settings,
@@ -318,8 +344,6 @@ def run(options):
                 block_plan=block_plan,
                 all_data=all_data,
                 continue_key=continue_key,
-                repeat_limit=repeat_limit,
-                threshold=threshold,
             )
 
         total_summary = summarize_trials(all_data)
@@ -336,7 +360,7 @@ def run(options):
             condition_id="good_bye",
             valid_keys=continue_key,
             task_factors={
-                "stage": "good_bye",
+                "stage_id": "good_bye",
                 "overall_accuracy": total_summary["accuracy"],
                 "mean_correct_rt_ms": total_summary["mean_correct_rt_ms"],
                 "timeout_count": total_summary["timeout_count"],

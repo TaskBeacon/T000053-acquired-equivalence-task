@@ -4,15 +4,16 @@
 
 ### Added
 
-- Built a classic transitive inference task with a five-symbol Hiragana chain, repeat-until-criterion training, and a final mixed test block.
-- Added deterministic block scheduling, QA/smoke profiles, and simulation responder support.
+- Built an acquired-equivalence task with face cues, paired fish choices, repeat-until-criterion training, and a final transfer test.
+- Added generated face and fish reference assets for the cue/choice display.
+- Added deterministic stage scheduling, QA/sim profiles, and a stage-aware simulation responder.
 - Added reference artifacts, plot artifacts, and PsyFlow/TAPS metadata for publishing.
 
 ### Changed
 
-- Refined the task-flow plot to keep the variant note compact and readable.
-- Tightened the QA/sim profiles so they are shorter than the human schedule.
+- Replaced the inherited transitive-inference scaffold with acquired-equivalence stage logic and transfer probes.
+- Switched the task documentation, manifest, and config bundle to the new task identity and asset map.
 
 ### Fixed
 
-- Aligned the audit and runtime phase labels for training and test pair-display flows.
+- Aligned the audit, runtime, and trigger labels for the new choice-display flow.

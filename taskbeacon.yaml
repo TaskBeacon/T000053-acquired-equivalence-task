@@ -1,11 +1,12 @@
-id: T000052
-slug: transitive-inference-task
-title: Transitive Inference Task
+id: T000053
+slug: acquired-equivalence-task
+title: Acquired Equivalence Task
 acquisition: behavior
 variant: baseline
 cognitive_domain:
-  - reasoning
   - learning
+  - memory
+  - reasoning
 maturity: draft
 version:
   release_tag: v0.1.0-dev

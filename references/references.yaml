@@ -1,74 +1,76 @@
-task_id: T000052-transitive-inference-task
-generated_at: '2026-04-16T17:22:35Z'
-selection_policy: curated_transitive_inference
+task_id: T000053
+generated_at: '2026-04-16T18:57:19Z'
+selection_policy: curated_acquired_equivalence
 citation_threshold: 100
 papers:
-- id: W2609154042
-  title: A map of abstract relational knowledge in the human hippocampal-entorhinal
-    cortex
+- id: W2036460152
+  title: 'Learning about associatively activated stimulus representations: Implications
+    for acquired equivalence and perceptual learning'
   authors:
-  - Mona M. Garvert
-  - Raymond J. Dolan
-  - Timothy E.J. Behrens
-  year: 2017
-  journal: eLife
-  doi_or_url: https://doi.org/10.7554/elife.17086
-  citation_count: 409
-  is_high_impact: true
+  - Geoffrey Hall
+  year: 1996
+  journal: Animal Learning & Behavior
+  doi_or_url: https://doi.org/10.3758/bf03198973
+  citation_count: 212
+  is_high_impact: false
   open_access: true
   used_for:
-  - task_workflow
-  - timing_parameters
+  - task_logic
+  - stimulus_mapping
   parameter_bindings: {}
-  notes: ''
-- id: W2164512113
-  title: Representation of stable social dominance relations by human infants
+  notes: Foundational acquired-equivalence framing for associatively activated representations
+    and transfer generalization.
+- id: W1535087671
+  title: Generalization of value in reinforcement learning by humans
   authors:
-  - Olivier Mascaro
-  - Gergely Csibra
+  - G. Elliott Wimmer
+  - Nathaniel D. Daw
+  - Daphna Shohamy
   year: 2012
-  journal: Proceedings of the National Academy of Sciences
-  doi_or_url: https://doi.org/10.1073/pnas.1113194109
-  citation_count: 254
-  is_high_impact: true
-  open_access: true
-  used_for:
-  - task_workflow
-  - timing_parameters
-  parameter_bindings: {}
-  notes: ''
-- id: W2116209672
-  title: Frontal and Parietal Lobe Activation during Transitive Inference in Humans
-  authors:
-  - Bettina D. Acuna
-  year: 2002
-  journal: Cerebral Cortex
-  doi_or_url: https://doi.org/10.1093/cercor/12.12.1312
-  citation_count: 190
-  is_high_impact: true
-  open_access: true
-  used_for:
-  - task_workflow
-  - timing_parameters
-  parameter_bindings: {}
-  notes: ''
-- id: W2093778263
-  title: 'Relational learning with and without awareness: Transitive inference using
-    nonverbal stimuli in humans'
-  authors:
-  - Anthony J. Greene
-  - Barbara A. Spellman
-  - William B. Levy
-  - Jeffery A. Dusek
-  - Howard Eichenbaum
-  year: 2001
-  journal: Memory & Cognition
-  doi_or_url: https://doi.org/10.3758/bf03196418
-  citation_count: 100
+  journal: European Journal of Neuroscience
+  doi_or_url: https://doi.org/10.1111/j.1460-9568.2012.08017.x
+  citation_count: 124
   is_high_impact: false
   open_access: true
   used_for:
   - task_workflow
   - timing_parameters
   parameter_bindings: {}
-  notes: ''
+  notes: Supports the human equivalence-learning / generalization workflow and transfer-test
+    structure.
+- id: W2001562084
+  title: 'The hippocampus and inferential reasoning: building memories to navigate
+    future decisions'
+  authors:
+  - Dagmar Zeithamová
+  - Margaret L. Schlichting
+  - Alison R. Preston
+  year: 2012
+  journal: Frontiers in Human Neuroscience
+  doi_or_url: https://doi.org/10.3389/fnhum.2012.00070
+  citation_count: 277
+  is_high_impact: false
+  open_access: true
+  used_for:
+  - task_workflow
+  - timing_parameters
+  parameter_bindings: {}
+  notes: Gives a convergent human inference/generalization framing for transfer trials.
+- id: W2090075044
+  title: Hippocampal and Ventral Medial Prefrontal Activation during Retrieval-Mediated
+    Learning Supports Novel Inference
+  authors:
+  - Dagmar Zeithamová
+  - April L. Dominick
+  - Alison R. Preston
+  year: 2012
+  journal: Neuron
+  doi_or_url: https://doi.org/10.1016/j.neuron.2012.05.010
+  citation_count: 564
+  is_high_impact: true
+  open_access: true
+  used_for:
+  - task_workflow
+  - timing_parameters
+  parameter_bindings: {}
+  notes: High-impact support for inference-based learning and transfer probe design.

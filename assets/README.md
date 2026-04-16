@@ -1,5 +1,5 @@
 # Assets
 
-This task does not use external media assets.
+This task uses generated face and fish reference assets.
 
-All participant-facing stimuli are rendered as PsychoPy text primitives from `config/*.yaml`.
+The PNG files in this directory are original, task-specific icons used to render the cue face and the two fish choices in the acquired-equivalence learning stages and transfer test.

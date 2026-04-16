@@ -4,20 +4,45 @@ import random
 from collections import defaultdict
 from typing import Any
 
-DEFAULT_CHAIN_SYMBOLS = ("ろ", "ま", "か", "め", "せ")
 DEFAULT_LEFT_KEY = "z"
 DEFAULT_RIGHT_KEY = "m"
 DEFAULT_CONTINUE_KEY = "space"
 DEFAULT_RESPONSE_WINDOW_S = 3.0
+DEFAULT_FIXATION_DURATION_S = 0.4
 DEFAULT_FEEDBACK_DURATION_S = 0.8
 DEFAULT_ITI_DURATION_S = 0.4
-DEFAULT_BLOCK_REPEAT_LIMIT = 3
-DEFAULT_TRAINING_THRESHOLD = 0.8
+DEFAULT_BLOCK_REPEAT_LIMIT = 8
 
-TRAINING_CONDITION_ID = "training_premise"
-TEST_PREMISE_CONDITION_ID = "test_premise"
-TEST_TRANSITIVE_CONDITION_ID = "test_transitive"
-TEST_ANCHOR_CONDITION_ID = "test_anchor"
+DEFAULT_FACE_ASSETS = {
+    "A1": "face_A1",
+    "A2": "face_A2",
+    "B1": "face_B1",
+    "B2": "face_B2",
+}
+
+DEFAULT_FISH_ASSETS = {
+    "X1": "fish_X1",
+    "X2": "fish_X2",
+    "Y1": "fish_Y1",
+    "Y2": "fish_Y2",
+}
+
+DEFAULT_STAGE_REQUIREMENTS = {
+    "stage1_training": 8,
+    "stage2_training": 8,
+    "stage3_training": 12,
+}
+
+PAIR_ORDER = (
+    "A1_X1",
+    "B1_Y1",
+    "A2_X1",
+    "B2_Y1",
+    "A1_X2",
+    "B1_Y2",
+    "A2_X2",
+    "B2_Y2",
+)
 
 
 def _coerce_int(value: Any, default: int) -> int:
@@ -34,17 +59,6 @@ def _coerce_float(value: Any, default: float) -> float:
         return float(default)
 
 
-def _trial_rng(seed: int, block_idx: int, trial_idx: int, attempt_idx: int = 0, salt: int = 0) -> random.Random:
-    mixed = (
-        (int(seed) + 1) * 1_000_003
-        + (int(block_idx) + 1) * 10_009
-        + (int(trial_idx) + 1) * 1_009
-        + (int(attempt_idx) + 1) * 97
-        + int(salt) * 31
-    )
-    return random.Random(mixed % (2**32))
-
-
 def _to_dict(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return dict(value)
@@ -56,267 +70,212 @@ def _to_dict(value: Any) -> dict[str, Any]:
         return {}
 
 
-def _to_list(value: Any) -> list[Any]:
-    if isinstance(value, list):
-        return list(value)
-    if isinstance(value, tuple):
-        return list(value)
+def _trial_rng(seed: int, block_idx: int, trial_idx: int, attempt_idx: int = 0, salt: int = 0) -> random.Random:
+    mixed = (
+        (int(seed) + 1) * 1_000_003
+        + (int(block_idx) + 1) * 10_009
+        + (int(trial_idx) + 1) * 1_009
+        + (int(attempt_idx) + 1) * 97
+        + int(salt) * 31
+    )
+    return random.Random(mixed % (2**32))
+
+
+def _asset_name(mapping: dict[str, Any], key: str, default: str) -> str:
+    value = mapping.get(key, default)
     if value is None:
-        return []
-    return [value]
+        return str(default)
+    return str(value)
 
 
-def _normalize_pair_spec(spec: Any) -> dict[str, Any]:
-    data = dict(spec or {})
-    pair_id = str(data.get("pair_id", "")).strip().upper()
-    correct_symbol = str(data.get("correct_symbol", "")).strip()
-    foil_symbol = str(data.get("foil_symbol", "")).strip()
-
-    if not pair_id:
-        raise ValueError("pair specification is missing pair_id")
-    if not correct_symbol or not foil_symbol:
-        raise ValueError(f"pair specification {pair_id!r} is missing symbol assignments")
-
+def _face_asset_map(settings: Any) -> dict[str, str]:
+    raw = _to_dict(getattr(settings, "face_assets", None))
     return {
-        "pair_id": pair_id,
-        "correct_symbol": correct_symbol,
-        "foil_symbol": foil_symbol,
+        "A1": _asset_name(raw, "A1", DEFAULT_FACE_ASSETS["A1"]),
+        "A2": _asset_name(raw, "A2", DEFAULT_FACE_ASSETS["A2"]),
+        "B1": _asset_name(raw, "B1", DEFAULT_FACE_ASSETS["B1"]),
+        "B2": _asset_name(raw, "B2", DEFAULT_FACE_ASSETS["B2"]),
     }
 
 
-def _build_pair_map(settings: Any) -> dict[str, dict[str, Any]]:
-    pair_map: dict[str, dict[str, Any]] = {}
-
-    premise_pairs = _to_list(getattr(settings, "premise_pairs", None))
-    for spec in premise_pairs:
-        normalized = _normalize_pair_spec(spec)
-        pair_map[normalized["pair_id"]] = {**normalized, "pair_kind": "premise"}
-
-    probe_pairs = _to_dict(getattr(settings, "probe_pairs", None))
-    for probe_name in ("transitive", "anchor"):
-        if probe_name not in probe_pairs:
-            continue
-        normalized = _normalize_pair_spec(probe_pairs[probe_name])
-        pair_map[normalized["pair_id"]] = {
-            **normalized,
-            "pair_kind": "probe",
-            "probe_name": probe_name,
-        }
-
-    if not pair_map:
-        chain = list(getattr(settings, "chain_symbols", DEFAULT_CHAIN_SYMBOLS))
-        if len(chain) < 5:
-            chain = list(DEFAULT_CHAIN_SYMBOLS)
-        pair_map = {
-            "AB": {"pair_id": "AB", "correct_symbol": chain[0], "foil_symbol": chain[1], "pair_kind": "premise"},
-            "BC": {"pair_id": "BC", "correct_symbol": chain[1], "foil_symbol": chain[2], "pair_kind": "premise"},
-            "CD": {"pair_id": "CD", "correct_symbol": chain[2], "foil_symbol": chain[3], "pair_kind": "premise"},
-            "DE": {"pair_id": "DE", "correct_symbol": chain[3], "foil_symbol": chain[4], "pair_kind": "premise"},
-            "BD": {"pair_id": "BD", "correct_symbol": chain[1], "foil_symbol": chain[3], "pair_kind": "probe", "probe_name": "transitive"},
-            "AE": {"pair_id": "AE", "correct_symbol": chain[0], "foil_symbol": chain[4], "pair_kind": "probe", "probe_name": "anchor"},
-        }
-
-    return pair_map
+def _fish_asset_map(settings: Any) -> dict[str, str]:
+    raw = _to_dict(getattr(settings, "fish_assets", None))
+    return {
+        "X1": _asset_name(raw, "X1", DEFAULT_FISH_ASSETS["X1"]),
+        "X2": _asset_name(raw, "X2", DEFAULT_FISH_ASSETS["X2"]),
+        "Y1": _asset_name(raw, "Y1", DEFAULT_FISH_ASSETS["Y1"]),
+        "Y2": _asset_name(raw, "Y2", DEFAULT_FISH_ASSETS["Y2"]),
+    }
 
 
-def _expand_pattern(pattern: dict[str, Any], *, rng: random.Random | None = None) -> list[str]:
-    pattern = _to_dict(pattern)
-    cycle_count = max(1, _coerce_int(pattern.get("cycle_count", 1), 1))
-    randomize = bool(pattern.get("randomize", False))
-    pair_repeats = _to_list(pattern.get("pair_repeats", []))
-
-    sequence: list[str] = []
-    for _ in range(cycle_count):
-        for item in pair_repeats:
-            data = _to_dict(item)
-            pair_id = str(data.get("pair_id", "")).strip().upper()
-            repeat = max(1, _coerce_int(data.get("repeat", 1), 1))
-            if not pair_id:
-                continue
-            sequence.extend([pair_id] * repeat)
-
-    if randomize and sequence:
-        (rng or random.Random(0)).shuffle(sequence)
-
-    return sequence
+def _stage_requirement_map(settings: Any) -> dict[str, int]:
+    raw = _to_dict(getattr(settings, "stage_required_consecutive_correct", None))
+    return {
+        "stage1_training": max(1, _coerce_int(raw.get("stage1_training", DEFAULT_STAGE_REQUIREMENTS["stage1_training"]), DEFAULT_STAGE_REQUIREMENTS["stage1_training"])),
+        "stage2_training": max(1, _coerce_int(raw.get("stage2_training", DEFAULT_STAGE_REQUIREMENTS["stage2_training"]), DEFAULT_STAGE_REQUIREMENTS["stage2_training"])),
+        "stage3_training": max(1, _coerce_int(raw.get("stage3_training", DEFAULT_STAGE_REQUIREMENTS["stage3_training"]), DEFAULT_STAGE_REQUIREMENTS["stage3_training"])),
+    }
 
 
-def _trial_spec(
+def _pair_template(
     *,
-    block_kind: str,
-    block_idx: int,
-    block_label: str,
-    trial_index_in_block: int,
     pair_id: str,
-    pair_info: dict[str, Any],
-    phase: str,
-    condition_id: str,
-    seed: int,
-    block_attempt: int = 1,
+    face_id: str,
+    correct_fish_id: str,
+    foil_fish_id: str,
+    pair_kind: str,
 ) -> dict[str, Any]:
     return {
-        "block_kind": block_kind,
-        "block_idx": int(block_idx),
-        "block_label": block_label,
-        "block_attempt": int(block_attempt),
-        "trial_phase": phase,
-        "trial_index_in_block": int(trial_index_in_block),
-        "pair_id": str(pair_id).upper(),
-        "pair_kind": str(pair_info.get("pair_kind", "premise")),
-        "condition_id": condition_id,
-        "correct_symbol": str(pair_info["correct_symbol"]),
-        "foil_symbol": str(pair_info["foil_symbol"]),
-        "stimulus_summary": f'{pair_id}:{pair_info["correct_symbol"]}/{pair_info["foil_symbol"]}',
-        "seed": int(seed),
+        "pair_id": str(pair_id),
+        "face_id": str(face_id),
+        "correct_fish_id": str(correct_fish_id),
+        "foil_fish_id": str(foil_fish_id),
+        "pair_kind": str(pair_kind),
     }
+
+
+def _stage_pair_templates(settings: Any) -> dict[str, list[dict[str, Any]]]:
+    faces = _face_asset_map(settings)
+    fish = _fish_asset_map(settings)
+
+    stage1 = [
+        _pair_template(pair_id="A1_X1", face_id=faces["A1"], correct_fish_id=fish["X1"], foil_fish_id=fish["Y1"], pair_kind="training"),
+        _pair_template(pair_id="B1_Y1", face_id=faces["B1"], correct_fish_id=fish["Y1"], foil_fish_id=fish["X1"], pair_kind="training"),
+    ]
+    stage2 = stage1 + [
+        _pair_template(pair_id="A2_X1", face_id=faces["A2"], correct_fish_id=fish["X1"], foil_fish_id=fish["Y1"], pair_kind="training"),
+        _pair_template(pair_id="B2_Y1", face_id=faces["B2"], correct_fish_id=fish["Y1"], foil_fish_id=fish["X1"], pair_kind="training"),
+    ]
+    stage3 = stage2 + [
+        _pair_template(pair_id="A1_X2", face_id=faces["A1"], correct_fish_id=fish["X2"], foil_fish_id=fish["Y2"], pair_kind="training"),
+        _pair_template(pair_id="B1_Y2", face_id=faces["B1"], correct_fish_id=fish["Y2"], foil_fish_id=fish["X2"], pair_kind="training"),
+    ]
+    transfer = stage3 + [
+        _pair_template(pair_id="A2_X2", face_id=faces["A2"], correct_fish_id=fish["X2"], foil_fish_id=fish["Y2"], pair_kind="transfer_probe"),
+        _pair_template(pair_id="B2_Y2", face_id=faces["B2"], correct_fish_id=fish["Y2"], foil_fish_id=fish["X2"], pair_kind="transfer_probe"),
+    ]
+
+    return {
+        "stage1_training": stage1,
+        "stage2_training": stage2,
+        "stage3_training": stage3,
+        "transfer_test": transfer,
+    }
+
+
+def _expand_display_trials(
+    pair_templates: list[dict[str, Any]],
+    *,
+    stage_id: str,
+    condition_id: str,
+    block_kind: str,
+    block_idx: int,
+    block_id: str,
+    block_label: str,
+    seed: int,
+    attempt_idx: int = 0,
+) -> list[dict[str, Any]]:
+    left_key = DEFAULT_LEFT_KEY
+    right_key = DEFAULT_RIGHT_KEY
+
+    def _left_stim_id(fish_id: str) -> str:
+        return f"{fish_id}_left"
+
+    def _right_stim_id(fish_id: str) -> str:
+        return f"{fish_id}_right"
+
+    trials: list[dict[str, Any]] = []
+    for template in pair_templates:
+        for order_index, correct_left in enumerate((True, False), start=1):
+            if correct_left:
+                left_fish_id = _left_stim_id(template["correct_fish_id"])
+                right_fish_id = _right_stim_id(template["foil_fish_id"])
+                correct_key = left_key
+                correct_side = "left"
+            else:
+                left_fish_id = _left_stim_id(template["foil_fish_id"])
+                right_fish_id = _right_stim_id(template["correct_fish_id"])
+                correct_key = right_key
+                correct_side = "right"
+
+            trials.append(
+                {
+                    "stage_id": stage_id,
+                    "condition_id": condition_id,
+                    "block_kind": block_kind,
+                    "block_idx": int(block_idx),
+                    "block_id": block_id,
+                    "block_label": block_label,
+                    "block_attempt": int(attempt_idx + 1),
+                    "pair_id": str(template["pair_id"]),
+                    "pair_kind": str(template["pair_kind"]),
+                    "face_id": str(template["face_id"]),
+                    "correct_fish_id": str(template["correct_fish_id"]),
+                    "foil_fish_id": str(template["foil_fish_id"]),
+                    "left_fish_id": str(left_fish_id),
+                    "right_fish_id": str(right_fish_id),
+                    "correct_key": correct_key,
+                    "correct_side": correct_side,
+                    "order_index": order_index,
+                    "seed": int(seed),
+                    "stimulus_summary": f'{template["pair_id"]}:{correct_side}',
+                }
+            )
+
+    rng = _trial_rng(seed, block_idx, 0, attempt_idx=attempt_idx, salt=91)
+    rng.shuffle(trials)
+    for trial_index, trial in enumerate(trials, start=1):
+        trial["trial_index_in_block"] = trial_index
+
+    return trials
 
 
 def build_session_plan(settings: Any) -> list[dict[str, Any]]:
-    """Build the full human session schedule from config-defined pair patterns."""
+    """Build the full acquired-equivalence session plan."""
 
-    overall_seed = _coerce_int(getattr(settings, "overall_seed", 52052), 52052)
-    pair_map = _build_pair_map(settings)
-    training_patterns = _to_dict(getattr(settings, "training_block_patterns", None))
-    test_pattern = _to_dict(getattr(settings, "test_block_pattern", None))
+    overall_seed = _coerce_int(getattr(settings, "overall_seed", 53053), 53053)
+    repeat_limit = max(1, _coerce_int(getattr(settings, "block_repeat_limit", DEFAULT_BLOCK_REPEAT_LIMIT), DEFAULT_BLOCK_REPEAT_LIMIT))
+    stage_requirements = _stage_requirement_map(settings)
+    stage_pairs = _stage_pair_templates(settings)
 
-    if not training_patterns:
-        training_patterns = {
-            "block_1": {
-                "cycle_count": 2,
-                "randomize": False,
-                "pair_repeats": [
-                    {"pair_id": "AB", "repeat": 5},
-                    {"pair_id": "BC", "repeat": 5},
-                    {"pair_id": "CD", "repeat": 5},
-                    {"pair_id": "DE", "repeat": 5},
-                ],
-            },
-            "block_2": {
-                "cycle_count": 5,
-                "randomize": False,
-                "pair_repeats": [
-                    {"pair_id": "AB", "repeat": 2},
-                    {"pair_id": "BC", "repeat": 2},
-                    {"pair_id": "CD", "repeat": 2},
-                    {"pair_id": "DE", "repeat": 2},
-                ],
-            },
-            "block_3": {
-                "cycle_count": 10,
-                "randomize": False,
-                "pair_repeats": [
-                    {"pair_id": "AB", "repeat": 1},
-                    {"pair_id": "BC", "repeat": 1},
-                    {"pair_id": "CD", "repeat": 1},
-                    {"pair_id": "DE", "repeat": 1},
-                ],
-            },
-            "block_4": {
-                "cycle_count": 1,
-                "randomize": True,
-                "pair_repeats": [
-                    {"pair_id": "AB", "repeat": 10},
-                    {"pair_id": "BC", "repeat": 10},
-                    {"pair_id": "CD", "repeat": 10},
-                    {"pair_id": "DE", "repeat": 10},
-                ],
-            },
-        }
+    plan: list[dict[str, Any]] = []
+    stage_specs = [
+        ("stage1_training", "Stage 1 Training", stage_pairs["stage1_training"], True),
+        ("stage2_training", "Stage 2 Training", stage_pairs["stage2_training"], True),
+        ("stage3_training", "Stage 3 Training", stage_pairs["stage3_training"], True),
+        ("transfer_test", "Final Transfer Test", stage_pairs["transfer_test"], False),
+    ]
 
-    if not test_pattern:
-        test_pattern = {
-            "cycle_count": 1,
-            "randomize": True,
-            "pair_repeats": [
-                {"pair_id": "AB", "repeat": 8},
-                {"pair_id": "BC", "repeat": 8},
-                {"pair_id": "CD", "repeat": 8},
-                {"pair_id": "DE", "repeat": 8},
-                {"pair_id": "BD", "repeat": 8},
-                {"pair_id": "AE", "repeat": 8},
-            ],
-        }
-
-    blocks: list[dict[str, Any]] = []
-    training_keys = ("block_1", "block_2", "block_3", "block_4")
-
-    for block_idx, block_key in enumerate(training_keys):
-        pattern = _to_dict(training_patterns.get(block_key))
-        rng = _trial_rng(overall_seed, block_idx, 0, salt=17)
-        sequence = _expand_pattern(pattern, rng=rng)
-        trials: list[dict[str, Any]] = []
-        for trial_index, pair_id in enumerate(sequence, start=1):
-            pair_info = pair_map[pair_id]
-            trials.append(
-                _trial_spec(
-                    block_kind="training",
-                    block_idx=block_idx,
-                    block_label=f"Training Block {block_idx + 1}",
-                    trial_index_in_block=trial_index,
-                    pair_id=pair_id,
-                    pair_info=pair_info,
-                    phase="training",
-                    condition_id=TRAINING_CONDITION_ID,
-                    seed=overall_seed,
-                )
-            )
-
-        blocks.append(
+    for block_idx, (stage_id, block_label, pair_templates, feedback_enabled) in enumerate(stage_specs):
+        condition_id = stage_id
+        trials = _expand_display_trials(
+            pair_templates,
+            stage_id=stage_id,
+            condition_id=condition_id,
+            block_kind="training" if feedback_enabled else "test",
+            block_idx=block_idx,
+            block_id=f"{stage_id}_block",
+            block_label=block_label,
+            seed=overall_seed,
+            attempt_idx=0,
+        )
+        plan.append(
             {
-                "block_kind": "training",
+                "stage_id": stage_id,
+                "block_kind": "training" if feedback_enabled else "test",
                 "block_idx": block_idx,
-                "block_id": f"training_block_{block_idx + 1}",
-                "block_label": f"Training Block {block_idx + 1}",
+                "block_id": f"{stage_id}_block",
+                "block_label": block_label,
                 "trials": trials,
-                "pair_ids": ["AB", "BC", "CD", "DE"],
+                "pair_ids": [trial["pair_id"] for trial in trials],
                 "trial_count": len(trials),
-                "criterion_threshold": _coerce_float(
-                    getattr(settings, "training_accuracy_threshold", DEFAULT_TRAINING_THRESHOLD),
-                    DEFAULT_TRAINING_THRESHOLD,
-                ),
+                "required_consecutive_correct": stage_requirements.get(stage_id),
+                "repeat_limit": repeat_limit,
+                "feedback_enabled": feedback_enabled,
             }
         )
 
-    test_block_idx = len(training_keys)
-    test_rng = _trial_rng(overall_seed, test_block_idx, 0, salt=29)
-    test_sequence = _expand_pattern(test_pattern, rng=test_rng)
-    test_trials: list[dict[str, Any]] = []
-    for trial_index, pair_id in enumerate(test_sequence, start=1):
-        pair_info = pair_map[pair_id]
-        if pair_info.get("pair_kind") == "premise":
-            condition_id = TEST_PREMISE_CONDITION_ID
-        elif str(pair_info.get("probe_name", "")).strip().lower() == "transitive":
-            condition_id = TEST_TRANSITIVE_CONDITION_ID
-        else:
-            condition_id = TEST_ANCHOR_CONDITION_ID
-        test_trials.append(
-            _trial_spec(
-                block_kind="test",
-                block_idx=test_block_idx,
-                block_label="Final Test",
-                trial_index_in_block=trial_index,
-                pair_id=pair_id,
-                pair_info=pair_info,
-                phase="test",
-                condition_id=condition_id,
-                seed=overall_seed,
-            )
-        )
-
-    blocks.append(
-        {
-            "block_kind": "test",
-            "block_idx": test_block_idx,
-            "block_id": "final_test",
-            "block_label": "Final Test",
-            "trials": test_trials,
-            "pair_ids": ["AB", "BC", "CD", "DE", "BD", "AE"],
-            "trial_count": len(test_trials),
-            "criterion_threshold": None,
-        }
-    )
-
-    return blocks
+    return plan
 
 
 def summarize_trials(trials: list[dict[str, Any]]) -> dict[str, Any]:
@@ -346,13 +305,12 @@ def summarize_trials(trials: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def summarize_training_block(trials: list[dict[str, Any]], *, threshold: float = DEFAULT_TRAINING_THRESHOLD) -> dict[str, Any]:
-    """Summarize premise-pair accuracy for a training block."""
+def summarize_stage_attempt(trials: list[dict[str, Any]]) -> dict[str, Any]:
+    """Summarize one attempt of a training stage."""
 
+    overall = summarize_trials(trials)
     pair_counts: dict[str, dict[str, int]] = defaultdict(lambda: {"correct": 0, "total": 0})
     for trial in trials:
-        if str(trial.get("pair_kind", "")).strip().lower() != "premise":
-            continue
         pair_id = str(trial.get("pair_id", "")).strip().upper()
         if not pair_id:
             continue
@@ -365,20 +323,12 @@ def summarize_training_block(trials: list[dict[str, Any]], *, threshold: float =
         total = counts["total"]
         pair_accuracy[pair_id] = (counts["correct"] / total) if total else 0.0
 
-    overall = summarize_trials(trials)
-    criterion_met = bool(pair_accuracy) and all(acc >= float(threshold) for acc in pair_accuracy.values())
+    perfect = overall["correct_trials"] == overall["total_trials"] and overall["total_trials"] > 0
     return {
         **overall,
         "pair_accuracy": pair_accuracy,
-        "criterion_met": criterion_met,
-        "criterion_threshold": float(threshold),
+        "perfect": perfect,
     }
-
-
-def summarize_block_trials(trials: list[dict[str, Any]], *, threshold: float = DEFAULT_TRAINING_THRESHOLD) -> dict[str, Any]:
-    """Compatibility wrapper used by the task runtime."""
-
-    return summarize_training_block(trials, threshold=threshold)
 
 
 def format_pair_accuracy_lines(summary: dict[str, Any]) -> str:
@@ -386,17 +336,15 @@ def format_pair_accuracy_lines(summary: dict[str, Any]) -> str:
 
     pair_accuracy = dict(summary.get("pair_accuracy", {}) or {})
     if not pair_accuracy:
-        return "No premise-pair data."
+        return "No pair data."
 
-    ordered_pairs = ["AB", "BC", "CD", "DE"]
     lines: list[str] = []
-    for pair_id in ordered_pairs:
-        if pair_id not in pair_accuracy:
-            continue
-        lines.append(f"{pair_id}: {pair_accuracy[pair_id] * 100:.0f}%")
+    for pair_id in PAIR_ORDER:
+        if pair_id in pair_accuracy:
+            lines.append(f"{pair_id}: {pair_accuracy[pair_id] * 100:.0f}%")
 
     for pair_id, acc in pair_accuracy.items():
-        if pair_id not in ordered_pairs:
+        if pair_id not in PAIR_ORDER:
             lines.append(f"{pair_id}: {acc * 100:.0f}%")
 
     return "   ".join(lines)

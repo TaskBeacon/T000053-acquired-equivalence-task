@@ -1,104 +1,70 @@
 # Task Plot Audit
 
-- generated_at: 2026-04-17T01:31:58
+- generated_at: 2026-04-17T03:08:53.5231563+08:00
 - mode: existing
-- task_path: E:\Taskbeacon\T000052-transitive-inference-task
+- task_path: E:\Taskbeacon\T000053-acquired-equivalence-task
 
 ## 1. Inputs and provenance
 
-- E:\Taskbeacon\T000052-transitive-inference-task\README.md
-- E:\Taskbeacon\T000052-transitive-inference-task\config\config.yaml
-- E:\Taskbeacon\T000052-transitive-inference-task\src\run_trial.py
+- E:\Taskbeacon\T000053-acquired-equivalence-task\README.md
+- E:\Taskbeacon\T000053-acquired-equivalence-task\config\config.yaml
+- E:\Taskbeacon\T000053-acquired-equivalence-task\src\run_trial.py
+- E:\Taskbeacon\T000053-acquired-equivalence-task\references\plot_assets\choice_stage1.png
+- E:\Taskbeacon\T000053-acquired-equivalence-task\references\plot_assets\choice_stage2.png
+- E:\Taskbeacon\T000053-acquired-equivalence-task\references\plot_assets\choice_stage3.png
+- E:\Taskbeacon\T000053-acquired-equivalence-task\references\plot_assets\choice_transfer.png
 
 ## 2. Evidence extracted from README
 
-- | Step | Description |
-- |---|---|
-- | Trial Fixation | Show a centered fixation cross for a short pre-pair interval. |
-- | Pair Display | Show the two Hiragana symbols side-by-side with a response prompt. |
-- | Pair Response | Collect `Z` for left or `M` for right within the response window. |
-- | Training Feedback | Show correctness feedback only during the training blocks. |
-- | Trial ITI | Show the fixation cross again before the next trial. |
+- Stage 1, Stage 2, Stage 3, and a final transfer test are described as the main flow.
+- Training stages use feedback after each choice.
+- The transfer test skips feedback.
+- Response mapping is `Z` for left and `M` for right.
 
 ## 3. Evidence extracted from config/source
 
-- training_premise: phase=fixation phase, deadline_expr=fixation_duration_s, response_expr=n/a, stim_expr='fixation'
-- training_premise: phase=pair phase, deadline_expr=response_window_s, response_expr=n/a, stim_expr='pair_display'
-- training_premise: phase=training feedback, deadline_expr=feedback_duration_s, response_expr=n/a, stim_expr=feedback_name
-- training_premise: phase=iti phase, deadline_expr=iti_duration_s, response_expr=n/a, stim_expr='fixation'
-- test_premise: phase=fixation phase, deadline_expr=fixation_duration_s, response_expr=n/a, stim_expr='fixation'
-- test_premise: phase=pair phase, deadline_expr=response_window_s, response_expr=n/a, stim_expr='pair_display'
-- test_premise: phase=training feedback, deadline_expr=feedback_duration_s, response_expr=n/a, stim_expr=feedback_name
-- test_premise: phase=iti phase, deadline_expr=iti_duration_s, response_expr=n/a, stim_expr='fixation'
-- test_transitive: phase=fixation phase, deadline_expr=fixation_duration_s, response_expr=n/a, stim_expr='fixation'
-- test_transitive: phase=pair phase, deadline_expr=response_window_s, response_expr=n/a, stim_expr='pair_display'
-- test_transitive: phase=training feedback, deadline_expr=feedback_duration_s, response_expr=n/a, stim_expr=feedback_name
-- test_transitive: phase=iti phase, deadline_expr=iti_duration_s, response_expr=n/a, stim_expr='fixation'
-- test_anchor: phase=fixation phase, deadline_expr=fixation_duration_s, response_expr=n/a, stim_expr='fixation'
-- test_anchor: phase=pair phase, deadline_expr=response_window_s, response_expr=n/a, stim_expr='pair_display'
-- test_anchor: phase=training feedback, deadline_expr=feedback_duration_s, response_expr=n/a, stim_expr=feedback_name
-- test_anchor: phase=iti phase, deadline_expr=iti_duration_s, response_expr=n/a, stim_expr='fixation'
+- `stage1_training`: fixation 400 ms, choice 3 s response window, feedback 800 ms, ITI 400 ms.
+- `stage2_training`: same flow, with the stage 2 composite choice screenshot.
+- `stage3_training`: same flow, with the stage 3 composite choice screenshot.
+- `transfer_test`: fixation 400 ms, choice 3 s response window, ITI 400 ms; no feedback screen.
+- The choice display is representative and uses stage-specific face/fish combinations with randomized left/right order at runtime.
 
 ## 4. Mapping to task_plot_spec
 
-- timeline collection: one representative timeline per unique trial logic
-- phase flow inferred from run_trial set_trial_context order and branch predicates
-- participant-visible show() phases without set_trial_context are inferred where possible and warned
-- duration/response inferred from deadline/capture expressions
-- stimulus examples inferred from stim_id + config stimuli
-- conditions with equivalent phase/timing logic collapsed and annotated as variants
 - root_key: task_plot_spec
 - spec_version: 0.2
+- one timeline per stage
+- four timelines total
+- four screens for each training timeline
+- three screens for the transfer timeline
 
 ## 5. Style decision and rationale
 
-- Single timeline-collection view selected by policy: one representative condition per unique timeline logic.
+- A four-timeline collection was used so the stage progression stays visible instead of collapsing into a single representative row.
+- `auto_width` was disabled so the renderer uses the full 16-inch canvas and keeps labels readable across four timelines.
 
 ## 6. Rendering parameters and constraints
 
 - output_file: task_flow.png
 - dpi: 300
 - max_conditions: 4
-- screens_per_timeline: 6
+- screens_per_timeline: 4
 - screen_overlap_ratio: 0.1
 - screen_slope: 0.08
 - screen_slope_deg: 25.0
 - screen_aspect_ratio: 1.4545454545454546
-- qa_mode: local
-- auto_layout_feedback:
-  - layout pass 1: crop-only; left=0.030, right=0.032, blank=0.118
-- auto_layout_feedback_records:
-  - pass: 1
-    metrics: {'left_ratio': 0.0295, 'right_ratio': 0.0315, 'blank_ratio': 0.1182}
-- validator_warnings:
-  - timelines[0].phases[1] missing duration_ms; renderer will annotate as n/a.
-  - timelines[0].phases[2] missing duration_ms; renderer will annotate as n/a.
-  - timelines[0].phases[3] missing duration_ms; renderer will annotate as n/a.
+- auto_width: false
+- validator_warnings: none
 
 ## 7. Output files and checksums
 
-- E:\Taskbeacon\T000052-transitive-inference-task\references\task_plot_spec.yaml: sha256=b42a55c9f7954370ed3a7e473efd7ea429966b2086793ca779a3d04ff5dbd83f
-- E:\Taskbeacon\T000052-transitive-inference-task\references\task_plot_spec.json: sha256=0f3f868641d90d6582e0bed49b7af49fec0ffdd1a768f36e4d5514e48a9478a3
-- E:\Taskbeacon\T000052-transitive-inference-task\references\task_plot_source_excerpt.md: sha256=9d909b59650e0b794edd747356089c381750e72499b3f2115b4573bd73312d5f
-- E:\Taskbeacon\T000052-transitive-inference-task\task_flow.png: sha256=9097ecbd92bb70f093822eddc52e8fefb70cf5287caf7e7a57b60cc187f8a710
+- E:\Taskbeacon\T000053-acquired-equivalence-task\references\task_plot_spec.yaml: sha256=46C1FB827FB7D997C65B08C78DD22836D3BFEC7C1FF5A0C3A9FB15AD75BFDFFB
+- E:\Taskbeacon\T000053-acquired-equivalence-task\references\task_plot_spec.json: sha256=DE96B27DBEA838F4CD0DD5A455E1FA0CEB62FA62FB9529CBC1D86F24985F2AED
+- E:\Taskbeacon\T000053-acquired-equivalence-task\references\task_plot_source_excerpt.md: sha256=F4E1194D50E1247F3B659ECB94E3F129D1C646ED7BD54667F0DF6956992470CB
+- E:\Taskbeacon\T000053-acquired-equivalence-task\task_flow.png: sha256=627D4D1A14794AB83110C3DA19EA2600204577C401AF4CF0E9424BE77F8FC376
 
 ## 8. Inferred/uncertain items
 
-- training_premise:fixation phase:heuristic range parse from '_coerce_float(getattr(settings, 'fixation_duration_s', 0.4), 0.4)'
-- training_premise:pair phase:unable to resolve duration from '_coerce_float(getattr(settings, 'response_window_s', DEFAULT_RESPONSE_WINDOW_S), DEFAULT_RESPONSE_WINDOW_S)'
-- training_premise:training feedback:unable to resolve duration from '_coerce_float(getattr(settings, 'feedback_duration_s', DEFAULT_FEEDBACK_DURATION_S), DEFAULT_FEEDBACK_DURATION_S)'
-- training_premise:iti phase:unable to resolve duration from '_coerce_float(getattr(settings, 'iti_duration_s', DEFAULT_ITI_DURATION_S), DEFAULT_ITI_DURATION_S)'
-- test_premise:fixation phase:heuristic range parse from '_coerce_float(getattr(settings, 'fixation_duration_s', 0.4), 0.4)'
-- test_premise:pair phase:unable to resolve duration from '_coerce_float(getattr(settings, 'response_window_s', DEFAULT_RESPONSE_WINDOW_S), DEFAULT_RESPONSE_WINDOW_S)'
-- test_premise:training feedback:unable to resolve duration from '_coerce_float(getattr(settings, 'feedback_duration_s', DEFAULT_FEEDBACK_DURATION_S), DEFAULT_FEEDBACK_DURATION_S)'
-- test_premise:iti phase:unable to resolve duration from '_coerce_float(getattr(settings, 'iti_duration_s', DEFAULT_ITI_DURATION_S), DEFAULT_ITI_DURATION_S)'
-- test_transitive:fixation phase:heuristic range parse from '_coerce_float(getattr(settings, 'fixation_duration_s', 0.4), 0.4)'
-- test_transitive:pair phase:unable to resolve duration from '_coerce_float(getattr(settings, 'response_window_s', DEFAULT_RESPONSE_WINDOW_S), DEFAULT_RESPONSE_WINDOW_S)'
-- test_transitive:training feedback:unable to resolve duration from '_coerce_float(getattr(settings, 'feedback_duration_s', DEFAULT_FEEDBACK_DURATION_S), DEFAULT_FEEDBACK_DURATION_S)'
-- test_transitive:iti phase:unable to resolve duration from '_coerce_float(getattr(settings, 'iti_duration_s', DEFAULT_ITI_DURATION_S), DEFAULT_ITI_DURATION_S)'
-- test_anchor:fixation phase:heuristic range parse from '_coerce_float(getattr(settings, 'fixation_duration_s', 0.4), 0.4)'
-- test_anchor:pair phase:unable to resolve duration from '_coerce_float(getattr(settings, 'response_window_s', DEFAULT_RESPONSE_WINDOW_S), DEFAULT_RESPONSE_WINDOW_S)'
-- test_anchor:training feedback:unable to resolve duration from '_coerce_float(getattr(settings, 'feedback_duration_s', DEFAULT_FEEDBACK_DURATION_S), DEFAULT_FEEDBACK_DURATION_S)'
-- test_anchor:iti phase:unable to resolve duration from '_coerce_float(getattr(settings, 'iti_duration_s', DEFAULT_ITI_DURATION_S), DEFAULT_ITI_DURATION_S)'
-- collapsed equivalent condition logic into representative timeline: training_premise, test_premise, test_transitive, test_anchor
-- unparsed if-tests defaulted to condition-agnostic applicability: block_kind == 'training'; response_correct; rng.random() < 0.5; timed_out
+- The plotted choice screenshots are representative composites assembled from runtime face/fish assets for visual clarity.
+- The transfer timeline uses a representative transfer probe layout; runtime order remains randomized across probes.
+- `display_condition_note` wording was shortened to satisfy the renderer's note-length guardrails.

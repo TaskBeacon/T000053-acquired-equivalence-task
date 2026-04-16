@@ -1,8 +1,7 @@
 # ============================================================================
-# Scripted simulation config
-# - Used by: python main.py sim --config config/config_scripted_sim.yaml
-# - Scope: scripted simulation only (no qa section in this file)
-# - Profile: short smoke run for responder plumbing checks
+# Base config (scripted sim run)
+# - Used by: python main.py sim
+# - Scope: sim-mode only
 # ============================================================================
 
 # === Subject Form ===========================================================
@@ -35,118 +34,39 @@ window:
 
 # === Task ===================================================================
 task:
-  task_name: Transitive Inference Task
+  task_name: Acquired Equivalence Task
   save_path: ./outputs/sim
-  total_blocks: 5
-  total_trials: 36
-  trial_per_block: 8
+  total_blocks: 4
+  total_trials: 48
+  trial_per_block: 12
   conditions:
-    - training_premise
-    - test_premise
-    - test_transitive
-    - test_anchor
+    - stage1_training
+    - stage2_training
+    - stage3_training
+    - transfer_test
   condition_weights: null
   key_list: [space, z, m]
   response_keys: [z, m]
   left_key: z
   right_key: m
   continue_key: space
-  chain_symbols: [ろ, ま, か, め, せ]
-  premise_pairs:
-    - pair_id: AB
-      correct_symbol: ろ
-      foil_symbol: ま
-    - pair_id: BC
-      correct_symbol: ま
-      foil_symbol: か
-    - pair_id: CD
-      correct_symbol: か
-      foil_symbol: め
-    - pair_id: DE
-      correct_symbol: め
-      foil_symbol: せ
-  probe_pairs:
-    transitive:
-      pair_id: BD
-      correct_symbol: ま
-      foil_symbol: め
-    anchor:
-      pair_id: AE
-      correct_symbol: ろ
-      foil_symbol: せ
-  training_block_patterns:
-    block_1:
-      cycle_count: 1
-      randomize: false
-      pair_repeats:
-        - pair_id: AB
-          repeat: 2
-        - pair_id: BC
-          repeat: 2
-        - pair_id: CD
-          repeat: 2
-        - pair_id: DE
-          repeat: 2
-    block_2:
-      cycle_count: 1
-      randomize: false
-      pair_repeats:
-        - pair_id: AB
-          repeat: 2
-        - pair_id: BC
-          repeat: 2
-        - pair_id: CD
-          repeat: 2
-        - pair_id: DE
-          repeat: 2
-    block_3:
-      cycle_count: 1
-      randomize: true
-      pair_repeats:
-        - pair_id: AB
-          repeat: 1
-        - pair_id: BC
-          repeat: 1
-        - pair_id: CD
-          repeat: 1
-        - pair_id: DE
-          repeat: 1
-    block_4:
-      cycle_count: 1
-      randomize: true
-      pair_repeats:
-        - pair_id: AB
-          repeat: 1
-        - pair_id: BC
-          repeat: 1
-        - pair_id: CD
-          repeat: 1
-        - pair_id: DE
-          repeat: 1
-  test_block_pattern:
-    cycle_count: 1
-    randomize: true
-    pair_repeats:
-      - pair_id: AB
-        repeat: 2
-      - pair_id: BC
-        repeat: 2
-      - pair_id: CD
-        repeat: 2
-      - pair_id: DE
-        repeat: 2
-      - pair_id: BD
-        repeat: 2
-      - pair_id: AE
-        repeat: 2
-  training_accuracy_threshold: 0.8
-  response_window_s: 1.4
-  fixation_duration_s: 0.2
-  feedback_duration_s: 0.3
-  iti_duration_s: 0.12
-  block_repeat_limit: 3
+  face_assets:
+    A1: face_A1
+    A2: face_A2
+    B1: face_B1
+    B2: face_B2
+  fish_assets:
+    X1: fish_X1
+    X2: fish_X2
+    Y1: fish_Y1
+    Y2: fish_Y2
+  stage_required_consecutive_correct:
+    stage1_training: 1
+    stage2_training: 1
+    stage3_training: 1
+  block_repeat_limit: 1
   seed_mode: same_across_sub
-  overall_seed: 52052
+  overall_seed: 53053
   delta: 0.0
   language: English
   voice_name: en-US-AriaNeural
@@ -168,37 +88,34 @@ stimuli:
   instruction_text:
     type: text
     text: |
-      Transitive Inference Task
+      Acquired Equivalence Task
 
-      Smoke test: same block structure, shorter timing.
-      You will learn which Hiragana symbol comes first in each pair.
-      The symbols you will see are: {chain_symbols}
-      Use Z for the left symbol and M for the right symbol.
-      Training blocks give feedback after every choice.
-      The final test has no feedback.
+      You will learn which fish goes with each face.
+      Some faces belong to the same hidden groups, so learning one face can help with another face from the same group.
+      Use Z for the left fish and M for the right fish.
+      Training stages give feedback after every choice.
+      The final transfer test has no feedback.
 
-      Training blocks repeat until every premise pair reaches {training_threshold_pct} accuracy.
       Press SPACE to begin.
     font: Arial
     color: white
     height: 26
-    wrapWidth: 1060
-    pos: [0, 18]
+    wrapWidth: 1080
+    pos: [0, 10]
 
   training_block_intro_text:
     type: text
     text: |
       {block_label}
 
-      This block has {trial_count} training trials.
-      You will get feedback after each choice.
-      The block repeats until every premise pair reaches {threshold_pct} accuracy.
+      This block has {trial_count} trials.
+      You need {required_consecutive_correct} consecutive correct responses to move on.
 
       Press SPACE to start.
     font: Arial
     color: white
     height: 28
-    wrapWidth: 1020
+    wrapWidth: 1040
     pos: [0, 0]
 
   test_block_intro_text:
@@ -206,40 +123,24 @@ stimuli:
     text: |
       {block_label}
 
-      This block has {trial_count} test trials.
-      There is no feedback in the final test.
+      This block has {trial_count} transfer trials.
+      No feedback will be shown in the transfer test.
 
-      Press SPACE to start the test.
+      Press SPACE to start.
     font: Arial
     color: white
     height: 28
-    wrapWidth: 1020
+    wrapWidth: 1040
     pos: [0, 0]
 
-  pair_prompt_text:
+  choice_prompt_text:
     type: text
-    text: "Choose the symbol that comes first in the learned order."
+    text: "Choose the fish that goes with this face."
     font: Arial
     color: white
     height: 24
     wrapWidth: 980
-    pos: [0, -245]
-
-  pair_left_symbol:
-    type: text
-    text: "{symbol}"
-    font: Meiryo
-    color: white
-    height: 78
-    pos: [-240, 0]
-
-  pair_right_symbol:
-    type: text
-    text: "{symbol}"
-    font: Meiryo
-    color: white
-    height: 78
-    pos: [240, 0]
+    pos: [0, -250]
 
   fixation:
     type: text
@@ -278,7 +179,9 @@ stimuli:
     text: |
       {block_label}
 
-      Premise pair accuracy:
+      Current streak: {current_streak}/{required_consecutive_correct}
+      Block accuracy: {accuracy_pct}
+      Pair accuracy:
       {pair_accuracy_lines}
 
       {repeat_message}
@@ -286,14 +189,14 @@ stimuli:
       Press SPACE to advance.
     font: Arial
     color: white
-    height: 26
+    height: 24
     wrapWidth: 1040
     pos: [0, 0]
 
   good_bye_text:
     type: text
     text: |
-      Final test complete
+      Transfer test complete
 
       Overall accuracy: {overall_accuracy_pct}
       Mean correct RT: {mean_correct_rt_ms}
@@ -306,6 +209,78 @@ stimuli:
     wrapWidth: 1040
     pos: [0, 0]
 
+  face_A1:
+    type: image
+    image: ./assets/face_A1.png
+    size: [220, 220]
+    pos: [0, 140]
+
+  face_A2:
+    type: image
+    image: ./assets/face_A2.png
+    size: [220, 220]
+    pos: [0, 140]
+
+  face_B1:
+    type: image
+    image: ./assets/face_B1.png
+    size: [220, 220]
+    pos: [0, 140]
+
+  face_B2:
+    type: image
+    image: ./assets/face_B2.png
+    size: [220, 220]
+    pos: [0, 140]
+
+  fish_X1_left:
+    type: image
+    image: ./assets/fish_X1.png
+    size: [220, 220]
+    pos: [-270, -120]
+
+  fish_X1_right:
+    type: image
+    image: ./assets/fish_X1.png
+    size: [220, 220]
+    pos: [270, -120]
+
+  fish_X2_left:
+    type: image
+    image: ./assets/fish_X2.png
+    size: [220, 220]
+    pos: [-270, -120]
+
+  fish_X2_right:
+    type: image
+    image: ./assets/fish_X2.png
+    size: [220, 220]
+    pos: [270, -120]
+
+  fish_Y1_left:
+    type: image
+    image: ./assets/fish_Y1.png
+    size: [220, 220]
+    pos: [-270, -120]
+
+  fish_Y1_right:
+    type: image
+    image: ./assets/fish_Y1.png
+    size: [220, 220]
+    pos: [270, -120]
+
+  fish_Y2_left:
+    type: image
+    image: ./assets/fish_Y2.png
+    size: [220, 220]
+    pos: [-270, -120]
+
+  fish_Y2_right:
+    type: image
+    image: ./assets/fish_Y2.png
+    size: [220, 220]
+    pos: [270, -120]
+
 
 # === Triggers ===============================================================
 triggers:
@@ -316,7 +291,7 @@ triggers:
     block_end: 11
     instruction_onset: 12
     trial_fixation_onset: 20
-    pair_onset: 21
+    choice_onset: 21
     response_z: 31
     response_m: 32
     trial_timeout: 33
@@ -336,10 +311,10 @@ triggers:
 # === Simulation =============================================================
 sim:
   output_dir: outputs/sim
-  seed: 52052
+  seed: 53053
   participant_id: sim001
-  session_id: sub-sim001_task-transitive_inference_task_seed52052
-  log_path: outputs/sim/sub-sim001_task-transitive_inference_task_seed52052_sim_events.jsonl
+  session_id: sub-sim001_task-acquired_equivalence_task_seed53053
+  log_path: outputs/sim/sub-sim001_task-acquired_equivalence_task_seed53053_sim_events.jsonl
   policy: warn
   default_rt_s: 0.2
   clamp_rt: false

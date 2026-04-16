@@ -2,239 +2,231 @@
 
 ## 1. Paradigm Intent
 
-- Task: Transitive Inference Task
-- Primary construct: inferential reasoning over a learned hierarchical order
+- Task: Acquired Equivalence Task
+- Primary construct: relational learning, equivalence-class formation, and transfer inference
 - Manipulated factors:
-  - training phase versus test phase
-  - premise pairs versus novel inference/control pairs
-  - feedback present versus absent
-  - randomized left/right position of the correct symbol
-  - training block ordering schedule
+  - training stage
+  - stimulus class membership
+  - trained versus transfer probe status
+  - left/right option order
 - Dependent measures:
-  - premise-pair accuracy by training block
-  - final premise-pair accuracy at test
-  - transitive pair (BD) accuracy
-  - end-anchor pair (AE) accuracy
+  - choice accuracy
   - response time
-  - timeout rate
+  - training-block criterion attainment
+  - transfer accuracy on novel class-consistent versus class-inconsistent probes
 - Key citations:
-  - W2093778263, `Relational learning with and without awareness: Transitive inference using nonverbal stimuli in humans`
-  - W2116209672, `Frontal and Parietal Lobe Activation during Transitive Inference in Humans`
-  - W2609154042, `A map of abstract relational knowledge in the human hippocampal–entorhinal cortex`
-  - W2164512113, `Representation of stable social dominance relations by human infants`
+  - W2036460152, Hall (1996)
+  - W1535087671, Wimmer, Daw, & Shohamy (2012)
+  - W2001562084, Zeithamová, Schlichting, & Preston (2012)
+  - W2090075044, Zeithamová, Dominick, & Preston (2012)
 
 ## 2. Block/Trial Workflow
 
 ### Block Structure
 
-- Total blocks: 5 nominal blocks in the human profile
-  - 4 training blocks
-  - 1 final test block
+- Total blocks: 4 nominal phases
+  - Stage 1 training
+  - Stage 2 training
+  - Stage 3 training
+  - Final transfer test
 - Trials per block:
-  - Training blocks: 40 trials each
-  - Test block: 48 trials total
+  - Stage 1: 4 trial types per attempt
+  - Stage 2: 8 trial types per attempt
+  - Stage 3: 12 trial types per attempt
+  - Transfer test: 16 trial types total, no feedback
 - Randomization/counterbalancing:
-  - Left/right screen position of the correct choice is randomized on every trial.
-  - Training block 4 uses randomized trial order with equal frequency of all premise pairs.
-  - Test block randomizes all 48 trials while preserving 8 repeats per pair type.
+  - Within each block attempt, left/right fish position is randomized per trial
+  - Trial order within a block is randomized deterministically from the task seed
+  - Transfer probes preserve the same deterministic randomization policy
 - Condition weight policy:
-  - `task.condition_weights` is `null` in config.
-  - Condition selection is not driven by weighted label sampling.
+  - `task.condition_weights` is not used; each block is generated from explicit stage-specific trial lists
+  - Runtime resolution is not delegated to `TaskSettings.resolve_condition_weights()`
+  - Even generation is achieved by explicit repeat counts per trial type
 - Condition generation method:
-  - Custom generator.
-  - The task uses cross-trial ordering constraints and fixed repetition schedules, so built-in label-level generation is not sufficient.
-  - The generated trial data passed into `run_trial.py` is a per-trial dictionary with `condition_id`, `block_kind`, `block_num`, `pair_id`, `left_symbol`, `right_symbol`, `correct_key`, `correct_symbol`, and timing fields.
+  - Custom generator
+  - The task needs stage-aware trial lists with retained prior pairings, which cannot be represented cleanly by a flat condition-label system alone
+  - The generated data shape is a list of block dictionaries, each with `block_kind`, `block_idx`, `block_id`, `block_label`, `trials`, `trial_count`, `criterion_threshold`, and `pair_ids`
 - Runtime-generated trial values:
-  - Left/right symbol placement is generated from a deterministic seed derived from `overall_seed`, block index, and trial index.
-  - Block repetition is decided at runtime from observed pair accuracies.
-  - If a training block fails criterion, the same block plan is replayed deterministically.
+  - Left/right choice order is generated at runtime for every trial
+  - Block repetition decisions are generated at runtime from block accuracy
+  - The RNG is seeded from the task seed, block index, trial index, and attempt index to keep results reproducible
 
 ### Trial State Machine
 
 1. State name: `instruction`
    - Onset trigger: experiment onset
-   - Stimuli shown: task instructions, five symbols preview, key mapping
+   - Stimuli shown: task instructions, response-key mapping, and short explanation of the face-to-fish learning rule
    - Valid keys: continue key
-   - Timeout behavior: wait indefinitely for continue
-   - Next state: `block_intro`
+   - Timeout behavior: waits indefinitely for continue
+   - Next state: `block_intro` for Stage 1
+
 2. State name: `block_intro`
    - Onset trigger: block onset
-   - Stimuli shown: block-specific instructions and trial count
+   - Stimuli shown: stage-specific intro text for the current learning phase or transfer phase
    - Valid keys: continue key
-   - Timeout behavior: wait indefinitely for continue
-   - Next state: `training_fixation` or `test_fixation`
-3. State name: `training_fixation`
-   - Onset trigger: trial fixation onset
+   - Timeout behavior: waits indefinitely for continue
+   - Next state: first trial fixation of the current block
+
+3. State name: `trial_fixation`
+   - Onset trigger: trial onset
    - Stimuli shown: fixation cross
    - Valid keys: none
-   - Timeout behavior: fixed-duration presentation
-   - Next state: `training_pair_display`
-4. State name: `training_pair_display`
-   - Onset trigger: pair onset
-   - Stimuli shown: two Hiragana symbols, left and right
-   - Valid keys: left key `z`, right key `m`
-   - Timeout behavior: response window expires after 3 s human / shorter QA-sim window in mode configs
-   - Next state: `training_feedback`
-5. State name: `training_feedback`
+   - Timeout behavior: fixed duration
+   - Next state: `choice_display`
+
+4. State name: `choice_display`
+   - Onset trigger: choice onset
+   - Stimuli shown: one face cue centered near the top, two fish options on the lower left and lower right, and a short prompt
+   - Valid keys: left_key, right_key
+   - Timeout behavior: response window ends as incorrect / no-response when no choice is made
+   - Next state: `feedback` on training trials, `iti` on transfer trials
+
+5. State name: `feedback`
    - Onset trigger: feedback onset
-   - Stimuli shown: `Correct`, `Incorrect`, or `Too slow`
+   - Stimuli shown: correctness feedback text or icon
    - Valid keys: none
-   - Timeout behavior: fixed-duration presentation
-   - Next state: `training_iti`
-6. State name: `training_iti`
+   - Timeout behavior: fixed duration
+   - Next state: `iti`
+
+6. State name: `iti`
    - Onset trigger: ITI onset
    - Stimuli shown: fixation cross
    - Valid keys: none
-   - Timeout behavior: fixed-duration presentation
+   - Timeout behavior: fixed duration
    - Next state: next trial or block summary
-7. State name: `test_fixation`
-   - Onset trigger: trial fixation onset
-   - Stimuli shown: fixation cross
-   - Valid keys: none
-   - Timeout behavior: fixed-duration presentation
-   - Next state: `test_pair_display`
-8. State name: `test_pair_display`
-   - Onset trigger: pair onset
-   - Stimuli shown: two Hiragana symbols, left and right
-   - Valid keys: left key `z`, right key `m`
-   - Timeout behavior: response window expires after 3 s human / shorter QA-sim window in mode configs
-   - Next state: `test_iti`
-9. State name: `test_iti`
-   - Onset trigger: ITI onset
-   - Stimuli shown: fixation cross
-   - Valid keys: none
-   - Timeout behavior: fixed-duration presentation
-   - Next state: next trial or block summary
-10. State name: `block_summary`
-   - Onset trigger: block-end / repeat-decision moment
-   - Stimuli shown: pair-wise accuracy summary and repeat/advance notice
+
+7. State name: `block_summary`
+   - Onset trigger: block end
+   - Stimuli shown: summary of accuracy by pair and whether the criterion was met
    - Valid keys: continue key
-   - Timeout behavior: wait indefinitely for continue
-   - Next state: repeat same training block or advance
-11. State name: `good_bye`
-   - Onset trigger: goodbye onset
-   - Stimuli shown: closing message
+   - Timeout behavior: waits indefinitely for continue
+   - Next state: either repeat the current training block or advance to the next block
+
+8. State name: `good_bye`
+   - Onset trigger: experiment end
+   - Stimuli shown: goodbye screen with overall summary
    - Valid keys: continue key
-   - Timeout behavior: wait indefinitely for continue
-   - Next state: end
+   - Timeout behavior: waits indefinitely for continue
+   - Next state: end of session
 
 ## 3. Condition Semantics
 
-- Condition ID: `training_premise`
-  - Participant-facing meaning: learn the ordered premise pairs through feedback
-  - Concrete stimulus realization (visual/audio): one of the premise pairs `ろ/ま`, `ま/か`, `か/め`, or `め/せ` with left/right order randomized; feedback text after response
-  - Outcome rules: choose the symbol that is earlier in the learned order
-- Condition ID: `test_premise`
-  - Participant-facing meaning: recall the learned premise pairs without feedback
-  - Concrete stimulus realization (visual/audio): same premise pairs as training, no feedback
-  - Outcome rules: choose the symbol earlier in the learned order
-- Condition ID: `test_transitive`
-  - Participant-facing meaning: infer the novel transitive pair
-  - Concrete stimulus realization (visual/audio): `ま/め` (BD) with left/right order randomized
-  - Outcome rules: choose the symbol earlier in the learned hierarchy
-- Condition ID: `test_anchor`
-  - Participant-facing meaning: respond to the end-anchor control pair
-  - Concrete stimulus realization (visual/audio): `ろ/せ` (AE) with left/right order randomized
-  - Outcome rules: choose the symbol earlier in the learned hierarchy
+For each condition token in `task.conditions`:
+
+- Condition ID: `stage1_training`
+  - Participant-facing meaning: initial learning of the first face-fish associations
+  - Concrete stimulus realization (visual/audio): one face cue with a left/right fish choice; correct fish is reinforced
+  - Outcome rules: training feedback follows the choice; wrong or missing responses are marked incorrect
+
+- Condition ID: `stage2_training`
+  - Participant-facing meaning: equivalence expansion using new faces that share the first learned outcomes
+  - Concrete stimulus realization (visual/audio): one of the four stage-1 faces or the two new faces appears as the cue, with the retained fish pairings from stage 1 plus the new stage-2 pairings
+  - Outcome rules: training feedback follows the choice; stage continues until the criterion is met or the repeat limit is reached
+
+- Condition ID: `stage3_training`
+  - Participant-facing meaning: learning a new fish set while keeping the previously learned face-outcome relations active
+  - Concrete stimulus realization (visual/audio): familiar faces cue choice between the new fish pair
+  - Outcome rules: training feedback follows the choice; stage continues until the criterion is met or the repeat limit is reached
+
+- Condition ID: `transfer_test`
+  - Participant-facing meaning: no-feedback transfer probes for the novel equivalence-consistent pairings
+  - Concrete stimulus realization (visual/audio): the transfer-stage faces and fish appear with no correctness feedback
+  - Outcome rules: responses are logged for transfer accuracy; no learning feedback is shown
 
 Also document where participant-facing condition text/stimuli are defined:
 
-- Participant-facing text source (config stimuli / code formatting / generated assets): config-defined text stimuli for instructions, prompts, feedback, and block summaries; symbol glyphs are text stimuli rendered in a Japanese-capable font
-- Why this source is appropriate for auditability: all participant text and symbol rendering parameters stay in YAML, while `run_trial.py` only orchestrates state transitions and populates trial-specific symbol values
-- Localization strategy (how language variants are swapped via config without code edits): instruction and prompt wording remain in config; only the font and text strings change per language profile, while the runtime uses the same state machine
+- Participant-facing text source (config stimuli / code formatting / generated assets): config stimuli for instructions and block-intro text; generated reference assets for face and fish icons; code only formats trial-specific labels and pairings
+- Why this source is appropriate for auditability: it keeps instructional wording in config, keeps stimulus assets versioned under the task repo, and allows the runtime to remain mode-agnostic
+- Localization strategy (how language variants are swapped via config without code edits): participant-facing text lives in the config files, so a language change only swaps the config bundle and the font settings
 
 ## 4. Response and Scoring Rules
 
-- Response mapping:
-  - `z` selects the left symbol
-  - `m` selects the right symbol
-- Response key source (config field vs code constant):
-  - Config-driven via `task.left_key` and `task.right_key`
-- If code-defined, why config-driven mapping is not sufficient:
-  - Not applicable; the mapping is config-driven
-- Missing-response policy:
-  - A missing response within the response window counts as a timeout
-  - Training timeout shows `Too slow`
-  - Test timeout is logged and advances without feedback
-- Correctness logic:
-  - For premise pairs, the symbol earlier in the fixed chain is correct
-  - For BD, the correct response is `ま` because it precedes `め`
-  - For AE, the correct response is `ろ` because it precedes `せ`
-- Reward/penalty updates:
-  - Correct training responses show `Correct`
-  - Incorrect training responses show `Incorrect`
-  - Timeouts show `Too slow`
+- Response mapping: left key chooses the left fish; right key chooses the right fish
+- Response key source (config field vs code constant): config-driven via `task.left_key`, `task.right_key`, and `task.response_keys`
+- If code-defined, why config-driven mapping is not sufficient: not needed; the task can remain config-driven
+- Missing-response policy: no response within the response window counts as incorrect and is logged as a timeout
+- Correctness logic: the correct fish depends on the stage-specific face cue and the currently active trial pairing
+- Reward/penalty updates: none; only correctness feedback is shown on training trials
 - Running metrics:
-  - Training-block accuracy by premise pair
-  - Final test accuracy by condition
-  - Mean correct RT
-  - Timeout count
+  - block accuracy
+  - pair-specific accuracy
+  - timeout count
+  - mean correct RT
+  - transfer-probe accuracy
 
 ## 5. Stimulus Layout Plan
 
-- Screen name: `instruction`
-  - Stimulus IDs shown together: `instruction_text`
-  - Layout anchors (`pos`): centered text block with the symbol preview placed beneath the main paragraph
-  - Size/spacing (`height`, width, wrap): instruction text wraps to ~1000 px; symbol preview uses larger glyph height
-  - Readability/overlap checks: keep the symbol preview separated from the paragraph by vertical spacing
-  - Rationale: the participant needs the key mapping and the fact that there are five symbols, without exposing the learned order
-- Screen name: `trial_pair`
-  - Stimulus IDs shown together: `pair_left_symbol`, `pair_right_symbol`, `pair_prompt_text`
-  - Layout anchors (`pos`): left symbol at approximately `[-220, 0]`, right symbol at `[220, 0]`, prompt below at `[0, -230]`
-  - Size/spacing (`height`, width, wrap): large symbol glyphs for discrimination; prompt text smaller; no overlap with the pair
-  - Readability/overlap checks: pair symbols must remain legible on a 1280x720 window and should not clip at the edges
-  - Rationale: this is the core discrimination screen and must minimize crowding
-- Screen name: `feedback`
-  - Stimulus IDs shown together: `training_feedback_correct`, `training_feedback_incorrect`, `training_feedback_timeout`
-  - Layout anchors (`pos`): centered
-  - Size/spacing (`height`, width, wrap): short centered text, no extra elements
-  - Readability/overlap checks: single-line or two-line centered layout only
-  - Rationale: feedback should be immediately readable and visually distinct
-- Screen name: `block_summary`
-  - Stimulus IDs shown together: `block_summary_text`
-  - Layout anchors (`pos`): centered
-  - Size/spacing (`height`, width, wrap): medium text with generous wrap width
-  - Readability/overlap checks: summary text must stay within the central viewport
-  - Rationale: summarize criterion status before repeating or advancing
+For every screen with multiple simultaneous options/stimuli:
+
+- Screen name: instruction screen
+  - Stimulus IDs shown together: instruction text, response-key text, brief task summary
+  - Layout anchors (`pos`): centered title, body text below, key mapping near the bottom
+  - Size/spacing (`height`, width, wrap): title large; body text wrapped to a narrow column
+  - Readability/overlap checks: separate text blocks vertically with ample wrap width
+  - Rationale: instructions need to be readable before the first trial
+
+- Screen name: choice display
+  - Stimulus IDs shown together: one face cue and two fish options
+  - Layout anchors (`pos`): face centered at `y > 0`; fish options placed lower left and lower right; prompt centered below the face
+  - Size/spacing (`height`, width, wrap): face slightly larger than the fish options; fish options sized evenly; prompt text small enough to avoid crowding
+  - Readability/overlap checks: keep the fish options at least one option-width apart and clear the face cue from the response area
+  - Rationale: the face is the cue, while the fish options are the response choices
+
+- Screen name: feedback screen
+  - Stimulus IDs shown together: feedback text plus fixation
+  - Layout anchors (`pos`): feedback centered
+  - Size/spacing (`height`, width, wrap): one line or short paragraph
+  - Readability/overlap checks: single focal element keeps the stage easy to audit
+  - Rationale: feedback should be unambiguous and brief
+
+- Screen name: block summary screen
+  - Stimulus IDs shown together: summary text and pair-accuracy lines
+  - Layout anchors (`pos`): title at top, summary lines centered beneath
+  - Size/spacing (`height`, width, wrap): compact multiline text, no overlap
+  - Readability/overlap checks: separate summary line block from the repeat-message line
+  - Rationale: participants need to see which stage is repeating or advancing
 
 ## 6. Trigger Plan
 
-- `exp_onset`: experiment start
-- `instruction_onset`: instruction screen
-- `block_onset`: each training/test block start
-- `trial_fixation_onset`: fixation before each pair
-- `pair_onset`: pair display and response window start
-- `response_z`: left-key response
-- `response_m`: right-key response
-- `trial_timeout`: no response before deadline
-- `feedback_onset`: training feedback screen
-- `block_end`: block completion and summary
-- `good_bye_onset`: closing screen
+Map each phase/state to trigger code and semantics.
+
+- `exp_onset`: start of the task
+- `instruction_onset`: instruction screen onset
+- `block_onset`: start of each stage or transfer block
+- `trial_fixation_onset`: fixation onset before the face cue
+- `choice_onset`: choice display onset
+- `response_left` / `response_right`: recorded when the participant selects the left or right fish
+- `feedback_onset`: training feedback onset
+- `trial_iti_onset`: ITI onset
+- `block_end`: end of a completed attempt block
+- `good_bye_onset`: goodbye screen onset
+- `exp_end`: task termination
 
 ## 7. Architecture Decisions (Auditability)
 
-- `main.py` runtime flow style (simple single flow / helper-heavy / why): simple single flow with a small text-screen helper; block repetition logic stays readable in the main loop
+- `main.py` runtime flow style (simple single flow / helper-heavy / why): simple single flow in `human|qa|sim` mode, with a thin helper for text screens and a block runner
 - `utils.py` used? yes
-- If yes, exact purpose (adaptive controller / sequence generation / asset pool / other): deterministic trial-sequence generation, pair orientation randomization, and block-accuracy summarization
-- Custom controller used? yes
-- If yes, why PsyFlow-native path is insufficient: the training protocol requires fixed block schedules and a repeat-until-criterion rule that cannot be expressed as a simple label sampler
+- If yes, exact purpose (adaptive controller / sequence generation / asset pool / other): block-and-trial sequence generation, stage summaries, and criterion checks
+- Custom controller used? yes, but only for the learning-stage repeat-until-criterion logic
+- If yes, why PsyFlow-native path is insufficient: the task needs stage-specific trial lists that grow across phases and repeat based on accuracy criterion, which is easier to audit in a small helper than via static block conditions alone
 - Legacy/backward-compatibility fallback logic required? no
-- If yes, scope and removal plan: not applicable
+- If yes, scope and removal plan: n/a
 
 ## 8. Inference Log
 
-- Decision: use the classic uninformed training protocol as the baseline task
-  - Why inference was required: the source paper contains informed and uninformed variants, but the task repository needs one executable default
-  - Citation-supported rationale: the uninformed version is the standard trial-by-trial learning protocol and preserves the core transitive-inference structure
-- Decision: omit the post-experimental awareness questionnaire from the baseline runtime
-  - Why inference was required: the questionnaire is a secondary measurement module rather than the core task flow
-  - Citation-supported rationale: the paper treats awareness as an after-test assessment; the learning/test workflow is the task itself
-- Decision: use a fixed feedback duration and ITI in the runtime implementation
-  - Why inference was required: the methods specify the response window and feedback content, but not an exact on-screen duration for every auxiliary screen in the executable task
-  - Citation-supported rationale: a short feedback interval and brief ITI are standard for this protocol family
-- Decision: cap training block repeats with a small finite limit
-  - Why inference was required: the paper specifies a repeat-until-criterion rule but not an upper bound
-  - Citation-supported rationale: a finite retry cap prevents the task from stalling while still honoring the criterion
+List any inferred decisions not directly specified by references:
+
+- Decision: Use a four-phase schedule with Stage 1, Stage 2, Stage 3, and a final transfer test
+  - Why inference was required: the selected papers establish the acquired-equivalence and inference framework, but the exact stage count and block-repeat schedule need one concrete protocol to operationalize
+  - Citation-supported rationale: the classical acquired-equivalence protocol paper uses a multi-stage face/fish schedule with repeated learning blocks and a transfer test; the selected papers support the human generalization/inference framing
+
+- Decision: Keep the participant-facing stimuli as stylized face and fish drawings rather than photographic images
+  - Why inference was required: the selected papers describe the stimulus classes and their roles, but not a single required rendering package
+  - Citation-supported rationale: the paradigm depends on the relational mapping, not on a proprietary visual asset set
+
+- Decision: Use deterministic trial randomization and deterministic left/right order assignment
+  - Why inference was required: the papers describe the trial structure and outcome logic, but not the exact randomization seed policy
+  - Citation-supported rationale: deterministic generation is compatible with the published stage logic and improves auditability
 
 ## Contract Note
 
