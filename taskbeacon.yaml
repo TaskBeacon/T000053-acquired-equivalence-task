@@ -11,7 +11,7 @@ maturity: draft
 version:
   release_tag: v0.1.0-dev
 contracts:
-  taps: v0.1.0
+  taps: v0.2.0
 evidence:
   - references/references.yaml
   - references/references.md
@@ -21,3 +21,5 @@ evidence:
   - references/task_plot_spec.yaml
   - task_flow.png
 maintainer: []
+runtime:
+  profile: psyflow
