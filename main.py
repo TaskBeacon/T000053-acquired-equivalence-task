@@ -6,6 +6,7 @@ import pandas as pd
 from psychopy import core
 
 from psyflow import (
+    BlockUnit,
     StimBank,
     StimUnit,
     SubInfo,
@@ -148,20 +149,32 @@ def _run_stage_block(
             rng = _attempt_rng(getattr(settings, "overall_seed", 53053), block_idx, attempt_idx)
             rng.shuffle(attempt_trials)
 
-            attempt_results: list[dict] = []
-            for trial_spec in attempt_trials:
-                trial_data = run_trial(
-                    win,
-                    kb,
-                    settings,
-                    condition={**trial_spec, "block_attempt": attempt_idx},
-                    stim_bank=stim_bank,
-                    trigger_runtime=trigger_runtime,
+            attempt_conditions = [{**trial_spec, "block_attempt": attempt_idx} for trial_spec in attempt_trials]
+            attempt_block = (
+                BlockUnit(
                     block_id=attempt_block_id,
                     block_idx=block_idx,
+                    settings=settings,
+                    window=win,
+                    keyboard=kb,
+                    n_trials=len(attempt_conditions),
                 )
-                attempt_results.append(trial_data)
-                all_data.append(trial_data)
+                .add_condition(attempt_conditions)
+                .run_trial(
+                    lambda win_arg, kb_arg, settings_arg, condition_arg: run_trial(
+                        win_arg,
+                        kb_arg,
+                        settings_arg,
+                        condition=condition_arg,
+                        stim_bank=stim_bank,
+                        trigger_runtime=trigger_runtime,
+                        block_id=attempt_block_id,
+                        block_idx=block_idx,
+                    )
+                )
+            )
+            attempt_results = attempt_block.get_all_data()
+            all_data.extend(attempt_results)
 
             summary = summarize_stage_attempt(attempt_results)
             trigger_runtime.send(settings.triggers.get("block_end"))
@@ -246,18 +259,31 @@ def _run_stage_block(
         rng = _attempt_rng(getattr(settings, "overall_seed", 53053), block_idx, 1)
         rng.shuffle(attempt_trials)
 
-        for trial_spec in attempt_trials:
-            trial_data = run_trial(
-                win,
-                kb,
-                settings,
-                condition={**trial_spec, "block_attempt": 1},
-                stim_bank=stim_bank,
-                trigger_runtime=trigger_runtime,
+        test_conditions = [{**trial_spec, "block_attempt": 1} for trial_spec in attempt_trials]
+        test_block = (
+            BlockUnit(
                 block_id=block_id,
                 block_idx=block_idx,
+                settings=settings,
+                window=win,
+                keyboard=kb,
+                n_trials=len(test_conditions),
             )
-            all_data.append(trial_data)
+            .add_condition(test_conditions)
+            .run_trial(
+                lambda win_arg, kb_arg, settings_arg, condition_arg: run_trial(
+                    win_arg,
+                    kb_arg,
+                    settings_arg,
+                    condition=condition_arg,
+                    stim_bank=stim_bank,
+                    trigger_runtime=trigger_runtime,
+                    block_id=block_id,
+                    block_idx=block_idx,
+                )
+            )
+        )
+        all_data.extend(test_block.get_all_data())
 
         trigger_runtime.send(settings.triggers.get("block_end"))
 
